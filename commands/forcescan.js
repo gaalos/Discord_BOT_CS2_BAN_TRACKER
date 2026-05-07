@@ -17,8 +17,24 @@ module.exports = {
 
         await interaction.reply("🔎 Scan en cours...");
 
-        const { results, checked, newlyBanned } =
-            await runScan(client, interaction.guildId);
+        // 🔥 SAFE RUNSCAN (ANTI CRASH)
+        const scan = await runScan(client, interaction.guildId).catch(err => {
+            console.error("RUNSCAN ERROR:", err);
+            return null;
+        });
+
+        if (!scan) {
+            return interaction.editReply("❌ Scan failed.");
+        }
+
+        const results = scan.results || [];
+        const checked = scan.checked || 0;
+        const newlyBanned = scan.newlyBanned || 0;
+
+        // 🚨 SAFE CHECK
+        if (!Array.isArray(results) || results.length === 0) {
+            return interaction.editReply("⚠️ No results found.");
+        }
 
         const pages = [];
         const pageSize = 5;
@@ -37,17 +53,18 @@ module.exports = {
                 .setFooter({ text: `Page ${p + 1}/${pages.length}` });
 
             for (const r of pages[p]) {
+
                 embed.addFields({
-                    name: r.input,
-                    value: `${r.steamId || ""}\n${r.status}`
+                    name: r.input || "Unknown",
+                    value: `${r.steamId || "N/A"}\n${r.status || "UNKNOWN"}`
                 });
             }
 
             embed.addFields({
                 name: "📊 Summary",
                 value:
-`Checked: ${checked}
-New bans: ${newlyBanned}`
+                    `Checked: ${checked}\n` +
+                    `New bans: ${newlyBanned}`
             });
 
             return embed;
@@ -67,7 +84,7 @@ New bans: ${newlyBanned}`
 
         const msg = await interaction.followUp({
             embeds: [buildEmbed(page)],
-            components: row.components.length ? [row] : []
+            components: [row]
         });
 
         const collector = msg.createMessageComponentCollector({
@@ -77,6 +94,8 @@ New bans: ${newlyBanned}`
         collector.on("collect", async (btn) => {
 
             if (btn.user.id !== interaction.user.id) return;
+
+            if (!pages.length) return;
 
             if (btn.customId === "next") {
                 page = (page + 1) % pages.length;
