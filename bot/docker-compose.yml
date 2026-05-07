@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  bot:
+    build: .
+    container_name: cs2-ban-tracker-bot
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      # Persist SQLite database
+      - ./data:/app/data
+
+    environment:
+      - NODE_ENV=production
