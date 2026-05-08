@@ -16,6 +16,7 @@ module.exports = {
         await interaction.deferReply();
 
         const input = interaction.options.getString('url');
+        console.log(`Analyse = ${input}`);
 
         // ─────────────────────────────
         // STEAM RESOLUTION
@@ -94,18 +95,53 @@ module.exports = {
         const steamName = steamData?.steamID || "Unknown Steam User";
         const avatarFull = steamData?.avatarFull || null;
 
-        try {
-            const res = await axios.get(
-                `https://vac-ban.com/player-stats-api/player/${steamID64}`,
-                { timeout: 12000 }
-            );
 
-            const data = res.data;
+        try {
+            let data;
+            let retries = 0;
+
+            const isBansEmpty = (bans) => {
+                return (
+                    !bans ||
+                    typeof bans !== "object" ||
+                    Object.keys(bans).length === 0
+                );
+            };
+
+            while (retries < 6) {
+                try {
+                    const res = await axios.get(
+                        `https://vac-ban.com/player-stats-api/player/${steamID64}`,
+                        { timeout: 12000 }
+                    );
+
+                    data = res.data;
+                        if (retries > 0) {
+                                 await new Promise(resolve => setTimeout(resolve, 2000));
+                        }
+
+
+                    // Si ban_info est valide, on stop
+                    if (!isBansEmpty(data.ban_info)) {
+                        break;
+                    }
+
+                } catch (err) {
+                    // Ignore et retente
+                }
+
+                retries++;
+            }
+
+            if (!data || isBansEmpty(data.ban_info)) {
+                throw new Error("API ERROR: ban_info empty after 6 retries");
+            }
+
 
             const nickname = data.nickname || steamName || "Unknown player";
             const avatar = avatarFull || data.avatar_url || null;
             const profile_url = data.profile_url;
-            const profile_link = data.profile_url || url ;
+            const profile_link = data.profile_url || input ;
 
             const cs = data.csstatsgg || {};
             const stats = cs.stats || {};
@@ -318,6 +354,7 @@ module.exports = {
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [embed] });
+                 console.log(`FIN = ${input}`);
 
         } catch (err) {
             console.error(err);
