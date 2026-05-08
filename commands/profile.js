@@ -146,6 +146,7 @@ module.exports = {
             const cheat = data.gauges?.cheating_details || {};
             const signals = cheat.signals || {};
             const redFlags = cheat.red_flags || [];
+            const warnFlags = cheat.warnings || [];
             const cheatTypes = data.gauges?.cheat_types || {};
 
             const cheatingGauge = data.gauges?.cheating ?? 0;
@@ -336,11 +337,29 @@ module.exports = {
                         inline: true
                     },
                     {
-                        name: "🚩 Red Flags",
-                        value: redFlags.length
-                            ? redFlags.map(f => `• ${f.title || "Unknown"}`).join("\n")
-                            : "🟢 Aucun flag détecté",
+                    name: "🚩 Red Flags",
+                    value: redFlags.length
+                    ? redFlags.map(f => {
+                            const title = f?.title || "Unknown";
+                            const explanation = f?.explanation || "No explanation";
+                            const severity = f?.severity || "low";
+
+                            const emoji =
+                            severity === "high" ? "🔴" :
+                            severity === "medium" ? "🟠" :
+                                "🟡";
+
+                           return `${emoji} **${title}**\n_${explanation}_`;
+                        }).join("\n\n")
+                        : "🟢 Aucun flag détecté",
                         inline: false
+                    },
+                    {
+                         name: "⚠️ Warnings",
+                         value: warnFlags.length
+                         ? warnFlags.map(w => `• ${w}`).join("\n")
+                            : "🟢 Aucun warning",
+                            inline: false
                     },
                     {
                         name: "🧠 Score",
