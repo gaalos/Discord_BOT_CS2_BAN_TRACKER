@@ -1,6 +1,13 @@
 services:
   cs2-ban-tracker-bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # IMPORTANT: une seule image partagée pour tous les dossiers
+    image: cs2-ban-tracker-bot:latest
+
+    # Nom dynamique basé sur le dossier (projet compose)
     container_name: cs2-ban-tracker-bot_worker_${COMPOSE_PROJECT_NAME}
 
     restart: unless-stopped
@@ -9,8 +16,8 @@ services:
       - .env
 
     volumes:
-      # Persist SQLite database
+      # DB persistante par dossier
       - ./data:/app/data
 
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
