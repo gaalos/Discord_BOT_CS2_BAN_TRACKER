@@ -69,6 +69,7 @@ module.exports = {
 
             const nickname = data.nickname || "Unknown player";
             const avatar = data.avatar_url || null;
+            const profile_url = data.profile_url
             const cs = data.csstatsgg || {};
             const stats = cs.stats || {};
             const faceit = data.faceit || {};
@@ -232,7 +233,7 @@ module.exports = {
                     iconURL: avatar || undefined
                 })
                 .setThumbnail(avatar || null)
-                .setDescription(`SteamID: \`${steamID}\``)
+                .setDescription(`👤 Profile: [${data.nickname || steamID}](${data.profile_url})\nSteamID: \`${steamID}\``)
 
                 .addFields(
                     {
