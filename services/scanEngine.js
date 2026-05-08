@@ -21,18 +21,13 @@ async function extractSteamID(input) {
     match = input.match(/steamcommunity\.com\/id\/([^\/?#]+)/);
 
     if (match) {
-
         try {
-
             const res = await axios.get(
                 `https://steamcommunity.com/id/${match[1]}/?xml=1`,
                 { timeout: 8000 }
             );
 
-            const idMatch = res.data.match(
-                /<steamID64>(\d{17})<\/steamID64>/
-            );
-
+            const idMatch = res.data.match(/<steamID64>(\d{17})<\/steamID64>/);
             return idMatch ? idMatch[1] : null;
 
         } catch {
@@ -44,32 +39,25 @@ async function extractSteamID(input) {
 }
 
 // ─────────────────────────────
-// SAFE API FETCH
+// FETCH VAC-BAN API
 // ─────────────────────────────
 async function fetchProfile(steamId) {
 
     try {
-
         const res = await axios.get(
-            `https://cscheck.in/api/profile/${steamId}`,
+            `https://vac-ban.com/player-stats-api/player/${steamId}`,
             {
                 timeout: 10000,
                 validateStatus: () => true
             }
         );
 
-        if (res.status !== 200) {
-            return {
-                apiDown: true
-            };
-        }
+        if (res.status !== 200) return { apiDown: true };
 
         return res.data;
 
     } catch {
-        return {
-            apiDown: true
-        };
+        return { apiDown: true };
     }
 }
 
@@ -84,252 +72,129 @@ async function runScan(client, guildId) {
 
     if (!config?.channelId) return;
 
-    let channel;
+    const channel = await client.channels.fetch(config.channelId);
 
-    try {
-        channel = await client.channels.fetch(config.channelId);
-    } catch {
-        return;
-    }
-
-    const tracked = db.prepare(`
-        SELECT * FROM tracked
-    `).all();
+    const tracked = db.prepare(`SELECT * FROM tracked`).all();
 
     let checked = 0;
-    let newlyBanned = 0;
-    let stillBanned = 0;
+    let banned = 0;
     let clean = 0;
 
-    const recentBansRanking = [];
+    const recentBans = [];
 
     for (const acc of tracked) {
 
         const steamId = await extractSteamID(acc.steamInput);
-
         if (!steamId) continue;
 
         const data = await fetchProfile(steamId);
-
         checked++;
 
         // ─────────────────────────────
-        // API DOWN MESSAGE
+        // API DOWN
         // ─────────────────────────────
         if (!data || data.apiDown) {
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`remove_${acc.id}`)
-                        .setLabel("Remove")
-                        .setStyle(ButtonStyle.Danger)
-                );
-
-            const profileUrl =
-                `https://steamcommunity.com/profiles/${steamId}/`;
-
-            const embed = new EmbedBuilder()
-                .setTitle(`⚠️ API HS`)
-                .setURL(profileUrl)
-                .setColor(0x808080)
-
-                .setDescription(
-                    `## ❌ API UNAVAILABLE\n\n` +
-                    `🔗 [Open Steam Profile](${profileUrl})`
-                )
-
-                .addFields(
-                    {
-                        name: "Steam",
-                        value: `[${steamId}](${profileUrl})`,
-                        inline: true
-                    },
-                    {
-                        name: "Status",
-                        value: "Le service cscheck.in ne répond pas actuellement.",
-                        inline: false
-                    }
-                )
-
-                .setFooter({
-                    text: "CS2 Tracker System"
-                })
-
-                .setTimestamp();
-
             await channel.send({
-                embeds: [embed],
-                components: [row]
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle("⚠️ API DOWN")
+                        .setColor(0x808080)
+                        .setDescription(`SteamID: \`${steamId}\``)
+                ]
             });
-
-            await new Promise(r => setTimeout(r, 300));
 
             continue;
         }
 
-        const profile = data?.profile || {};
-        const bans = data?.bans || {};
-
-        const vac = bans.vac || {};
-        const gameBan = bans.gameBan || {};
-        const faceIT = bans.faceIT || {};
-
-        const isBanned =
-            vac.banned ||
-            gameBan.banned ||
-            faceIT.banned;
-
-        const wasBanned = acc.isBanned === 1;
-
-        const profileUrl =
-            profile.profileUrl ||
-            `https://steamcommunity.com/profiles/${steamId}/`;
+        // ─────────────────────────────
+        // SAFE DATA EXTRACTION
+        // ─────────────────────────────
+        const nickname =
+            data.nickname ||
+            data.csstatsgg?.name ||
+            "Unknown Player";
 
         const avatar =
-            profile.avatarUrl ||
-            profile.avatar ||
+            data.avatar_url ||
+            data.csstatsgg?.avatar ||
             null;
 
-        const nickname =
-            profile.nickname ||
-            "Unknown Player";
+        const profileUrl =
+            data.profile_url ||
+            `https://steamcommunity.com/profiles/${steamId}/`;
+
+        // ─────────────────────────────
+        // FIX BAN INFO (IMPORTANT)
+        // ─────────────────────────────
+        const bans = data.ban_info || {};
+
+        const vacBanned =
+            bans.vac_banned ||
+            bans.VACBanned ||
+            bans.number_of_vac_bans > 0 ||
+            bans.NumberOfVACBans > 0;
+
+        const gameBanned =
+            bans.number_of_game_bans > 0 ||
+            bans.NumberOfGameBans > 0;
+
+        const communityBanned =
+            bans.community_banned ||
+            bans.CommunityBanned;
+
+        const daysSinceBan =
+            bans.days_since_last_ban ??
+            bans.daysSinceLastBan ??
+            null;
+
+        const isBanned =
+            vacBanned || gameBanned || communityBanned;
 
         // ─────────────────────────────
         // STATS
         // ─────────────────────────────
         if (isBanned) {
+            banned++;
 
-            if (wasBanned) {
-                stillBanned++;
-            } else {
-                newlyBanned++;
-            }
+            recentBans.push({
+                nickname,
+                profileUrl,
+                avatar,
+                days: daysSinceBan
+            });
 
         } else {
             clean++;
         }
 
         // ─────────────────────────────
-        // UPDATE DB
+        // STATUS
         // ─────────────────────────────
-        if (isBanned && !wasBanned) {
+        let color = isBanned ? 0xff3b3b : 0x2ecc71;
 
-            db.prepare(`
-                UPDATE tracked
-                SET isBanned = 1
-                WHERE id = ?
-            `).run(acc.id);
-        }
+        let status = "🟢 CLEAN";
 
-        // ─────────────────────────────
-        // DAYS SINCE BAN
-        // ─────────────────────────────
-        const days =
-            vac.daysSinceLastBan ??
-            gameBan.daysSinceLastBan ??
-            null;
+        if (vacBanned) status = "⛔ VAC BAN";
+        else if (gameBanned) status = "🟧 GAME BAN";
+        else if (communityBanned) status = "🟪 COMMUNITY BAN";
 
-        // ─────────────────────────────
-        // STATUS + COLOR
-        // ─────────────────────────────
-        let color = 0x2ecc71;
-        let status = "🟢 CLEAN ACCOUNT";
-
-        if (isBanned) {
-
-            if (days !== null && days < 7) {
-
-                color = 0xff3b3b;
-
-                status =
-                    `🔴 RECENT BAN (${days}j ago)`;
-
-            } else {
-
-                color = 0xffa500;
-
-                status = days !== null
-                    ? `🟠 BANNED (${days}j ago)`
-                    : `🟠 BANNED`;
-            }
-        }
-
-        // ─────────────────────────────
-        // DETAILS
-        // ─────────────────────────────
-        const details = [];
-
-        if (vac.banned) {
-
-            details.push(
-                `🟥 VAC BAN`
-            );
-
-            details.push(
-                `└ Bans: ${vac.numberOfBans || 1}`
-            );
-
-            if (days !== null) {
-
-                details.push(
-                    `└ Last ban: ${days} days ago`
-                );
-            }
-        }
-
-        if (gameBan.banned) {
-
-            details.push(
-                `🟧 GAME BAN`
-            );
-
-            details.push(
-                `└ Bans: ${gameBan.numberOfBans || 1}`
-            );
-
-            if (gameBan.daysSinceLastBan !== null &&
-                gameBan.daysSinceLastBan !== undefined) {
-
-                details.push(
-                    `└ Last game ban: ${gameBan.daysSinceLastBan} days ago`
-                );
-            }
-        }
-
-        if (faceIT.banned) {
-
-            details.push(
-                `🟪 FACEIT BAN`
-            );
-        }
-
-        // ─────────────────────────────
-        // RECENT RANKING
-        // ─────────────────────────────
-        if (isBanned && days !== null && days < 7) {
-
-            recentBansRanking.push({
-                name: nickname,
-                days,
-                avatar,
-                url: profileUrl
-            });
+        if (daysSinceBan !== null && isBanned) {
+            status += ` (${daysSinceBan}j ago)`;
         }
 
         // ─────────────────────────────
         // BUTTONS
         // ─────────────────────────────
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`remove_${acc.id}`)
-                    .setLabel("Remove")
-                    .setStyle(ButtonStyle.Danger)
-            );
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`remove_${acc.id}`)
+                .setLabel("Remove")
+                .setStyle(ButtonStyle.Danger)
+        );
 
         // ─────────────────────────────
-        // EMBED
+        // EMBED CLEAN
         // ─────────────────────────────
         const embed = new EmbedBuilder()
             .setTitle(`👤 ${nickname}`)
@@ -338,27 +203,41 @@ async function runScan(client, guildId) {
             .setColor(color)
 
             .setDescription(
-                `## [${status}](${profileUrl})\n\n` +
-                `🔗 [Open Steam Profile](${profileUrl})`
+                `## ${status}\n` +
+                `🔗 [Steam Profile](${profileUrl})`
             )
 
             .addFields(
                 {
-                    name: "Steam",
-                    value: `[${steamId}](${profileUrl})`,
+                    name: "SteamID",
+                    value: `\`${steamId}\``,
                     inline: true
                 },
                 {
-                    name: "Ban Details",
-                    value: details.join("\n") || "No bans",
+                    name: "VAC",
+                    value: vacBanned ? "⛔ YES" : "🟢 NO",
+                    inline: true
+                },
+                {
+                    name: "Game Ban",
+                    value: gameBanned ? "⛔ YES" : "🟢 NO",
+                    inline: true
+                },
+                {
+                    name: "Community",
+                    value: communityBanned ? "⛔ YES" : "🟢 NO",
+                    inline: true
+                },
+                {
+                    name: "Last Ban",
+                    value: daysSinceBan !== null
+                        ? `${daysSinceBan} days ago`
+                        : "N/A",
                     inline: false
                 }
             )
 
-            .setFooter({
-                text: "CS2 Tracker System"
-            })
-
+            .setFooter({ text: "CS2 Tracker System" })
             .setTimestamp();
 
         await channel.send({
@@ -366,71 +245,47 @@ async function runScan(client, guildId) {
             components: [row]
         });
 
-        // ANTI RATE LIMIT
         await new Promise(r => setTimeout(r, 300));
     }
 
     // ─────────────────────────────
-    // SUMMARY
+    // SUMMARY CLEAN
     // ─────────────────────────────
-    const summary = new EmbedBuilder()
-
-        .setTitle("📊 SCAN SUMMARY")
-
-        .setColor(0x5865f2)
-
-        .setDescription(
-            `🔍 Checked: **${checked}**\n` +
-            `🔴 New bans: **${newlyBanned}**\n` +
-            `🟠 Still banned: **${stillBanned}**\n` +
-            `🟢 Clean: **${clean}**`
-        )
-
-        .setTimestamp();
-
     await channel.send({
-        embeds: [summary]
+        embeds: [
+            new EmbedBuilder()
+                .setTitle("📊 SCAN SUMMARY")
+                .setColor(0x5865f2)
+                .setDescription(
+                    `🔍 Checked: **${checked}**\n` +
+                    `⛔ Banned: **${banned}**\n` +
+                    `🟢 Clean: **${clean}**`
+                )
+        ]
     });
 
     // ─────────────────────────────
-    // RECENT BAN RANKING
+    // RECENT BANS
     // ─────────────────────────────
-    if (recentBansRanking.length > 0) {
+    if (recentBans.length > 0) {
 
-        recentBansRanking.sort(
-            (a, b) => a.days - b.days
-        );
-
-        const top =
-            recentBansRanking.slice(0, 5);
-
-        const ranking = new EmbedBuilder()
-
-            .setTitle("🔥 RECENT BANS")
-
-            .setColor(0xff3b3b)
-
-            .setDescription(
-                top.map((u, i) =>
-                    `**${i + 1}.** [${u.name}](${u.url}) • **${u.days}j ago**\n${u.avatar || ""}`
-                ).join("\n\n")
-            )
-
-            .setTimestamp();
+        const top = recentBans.slice(0, 5);
 
         await channel.send({
-            embeds: [ranking]
+            embeds: [
+                new EmbedBuilder()
+                    .setTitle("🔥 RECENT BANS")
+                    .setColor(0xff3b3b)
+                    .setDescription(
+                        top.map((u, i) =>
+                            `**${i + 1}.** [${u.nickname}](${u.profileUrl}) • ${u.days ?? "?"}j`
+                        ).join("\n")
+                    )
+            ]
         });
     }
 
-    return {
-        checked,
-        newlyBanned,
-        stillBanned,
-        clean
-    };
+    return { checked, banned, clean };
 }
 
-module.exports = {
-    runScan
-};
+module.exports = { runScan };
