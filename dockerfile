@@ -2,18 +2,15 @@ FROM node:20
 
 WORKDIR /app
 
-# Install deps
+# deps layer (cache optimal)
 COPY package*.json ./
 RUN npm install
 
-# Copy full project
+# code
 COPY . .
 
-# Create DB folder
+# data folder (OK mais inutile souvent)
 RUN mkdir -p /app/data
 
-# Permissions (safe in containers)
-RUN chmod -R 755 /app
 
-# Start bot (auto deploy + run)
 CMD ["sh", "-c", "node deploy-commands.js && node index.js"]
