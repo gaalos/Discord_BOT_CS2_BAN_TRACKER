@@ -112,12 +112,12 @@ module.exports = {
                 try {
                     const res = await axios.get(
                         `https://vac-ban.com/player-stats-api/player/${steamID64}`,
-                        { timeout: 12000 }
+                        { timeout: 16000 }
                     );
 
                     data = res.data;
                         if (retries > 0) {
-                                 await new Promise(resolve => setTimeout(resolve, 2000));
+                                 await new Promise(resolve => setTimeout(resolve, 3000));
                         }
 
 
@@ -132,11 +132,6 @@ module.exports = {
 
                 retries++;
             }
-
-            if (!data || isBansEmpty(data.ban_info)) {
-                throw new Error("API ERROR: ban_info empty after 6 retries");
-            }
-
 
             const nickname = data.nickname || steamName || "Unknown player";
             const avatar = avatarFull || data.avatar_url || null;
@@ -324,12 +319,14 @@ module.exports = {
                     },
                     {
                         name: "🚨 Ban Status",
-                        value:
-                            `VAC Ban: **${vacBan ? "⛔ YES" : "✅ NO"}**\n` +
-                            `Game Ban: **${gameBan ? "⛔ YES" : "✅ NO"}**\n` +
-                            `Community Ban: **${communityBan ? "⛔ YES" : "✅ NO"}**\n` +
-                            `Last Ban: **${lastBanDays ?? "N/A"} days ago**\n` +
-                            `Status: **${anyBan ? "⛔ BANNED" : "🟢 CLEAN"}**`,
+                        value: isBansEmpty(bans)
+                        ? "**API FAIL**"
+                            : 
+                        `VAC Ban: **${vacBan ? "⛔ YES" : "✅ NO"}**\n` +
+                        `Game Ban: **${gameBan ? "⛔ YES" : "✅ NO"}**\n` +
+                        `Community Ban: **${communityBan ? "⛔ YES" : "✅ NO"}**\n` +
+                        `Last Ban: **${lastBanDays ?? "N/A"} days ago**\n` +
+                        `Status: **${anyBan ? "⛔ BANNED" : "🟢 CLEAN"}**`,
                         inline: true
                     },
                     {
