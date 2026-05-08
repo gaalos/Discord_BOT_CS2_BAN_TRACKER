@@ -18,7 +18,7 @@ module.exports = {
         const input = interaction.options.getString('url');
 
         // ─────────────────────────────
-        // STEAM ID RESOLUTION (UPDATED)
+        // STEAM ID RESOLUTION
         // ─────────────────────────────
         const extractSteamID = (input) => {
             if (/^\d{17}$/.test(input)) return input;
@@ -34,7 +34,6 @@ module.exports = {
                 );
 
                 const xml = res.data;
-
                 const match = xml.match(/<steamID64>(\d{17})<\/steamID64>/);
                 return match ? match[1] : null;
 
@@ -67,6 +66,9 @@ module.exports = {
 
             const data = res.data;
 
+
+            const nickname = data.nickname || "Unknown player";
+            const avatar = data.avatar_url || null;
             const cs = data.csstatsgg || {};
             const stats = cs.stats || {};
             const faceit = data.faceit || {};
@@ -143,11 +145,9 @@ module.exports = {
             let score = 100;
             let color;
 
-
             if (anyBan) {
                 score = 0;
             } else {
-
                 score -= cheatingPercent * 2.2;
 
                 const signalPenalty = [
@@ -214,17 +214,12 @@ module.exports = {
                     })
                     .join("\n")
                 : "🟢 Aucun signal détecté";
-            if (anyBan) {
-                color = 0xff0000; // rouge
-            } else if (score >= 80) {
-                color = 0x00ff00; // vert
-            } else if (score >= 60) {
-                color = 0xffff00; // jaune
-            } else if (score >= 40) {
-                color = 0xffa500; // orange
-            } else {
-                color = 0xff0000; // rouge HIGH RISK
-            }
+
+            if (anyBan) color = 0xff0000;
+            else if (score >= 80) color = 0x00ff00;
+            else if (score >= 60) color = 0xffff00;
+            else if (score >= 40) color = 0xffa500;
+            else color = 0xff0000;
 
             // ─────────────────────────────
             // EMBED
@@ -232,7 +227,11 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(color)
                 .setTitle("🧠 CS2 FULL LEGIT ANALYSIS")
-                .setThumbnail(data.avatar_url || null)
+                .setAuthor({
+                    name: nickname || "Unknown player",
+                    iconURL: avatar || undefined
+                })
+                .setThumbnail(avatar || null)
                 .setDescription(`SteamID: \`${steamID}\``)
 
                 .addFields(
