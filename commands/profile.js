@@ -17,16 +17,46 @@ module.exports = {
 
         const input = interaction.options.getString('url');
 
+        // ─────────────────────────────
+        // STEAM ID RESOLUTION (UPDATED)
+        // ─────────────────────────────
         const extractSteamID = (input) => {
             if (/^\d{17}$/.test(input)) return input;
             const m = input.match(/(\d{17})/);
             return m ? m[1] : null;
         };
 
-        const steamID = extractSteamID(input);
+        const resolveSteamVanity = async (name) => {
+            try {
+                const res = await axios.get(
+                    `https://steamcommunity.com/id/${name}?xml=1`,
+                    { timeout: 10000 }
+                );
+
+                const xml = res.data;
+
+                const match = xml.match(/<steamID64>(\d{17})<\/steamID64>/);
+                return match ? match[1] : null;
+
+            } catch (e) {
+                return null;
+            }
+        };
+
+        let steamID = extractSteamID(input);
 
         if (!steamID) {
-            return interaction.editReply("❌ SteamID invalide.");
+            const cleanName = input
+                .replace("https://steamcommunity.com/id/", "")
+                .replace("https://steamcommunity.com/profiles/", "")
+                .replace("/", "")
+                .trim();
+
+            steamID = await resolveSteamVanity(cleanName);
+        }
+
+        if (!steamID) {
+            return interaction.editReply("❌ SteamID invalide ou vanity introuvable.");
         }
 
         try {
@@ -45,34 +75,29 @@ module.exports = {
             const cheat = data.gauges?.cheating_details || {};
             const signals = cheat.signals || {};
             const redFlags = cheat.red_flags || [];
+            const cheatTypes = data.gauges?.cheat_types || {};
 
-            // ─────────────────────────────
-            // CORE
-            // ─────────────────────────────
+            const cheatingGauge = data.gauges?.cheating ?? 0;
+            const cheatingPercent = typeof cheatingGauge === "object"
+                ? (cheatingGauge.value ?? 0)
+                : (cheatingGauge ?? 0);
+
             const kd = stats.kd ?? 0;
             const wr = stats.winrate ?? 0;
             const hs = stats.hs ?? 0;
             const matches = stats.matches ?? 0;
 
-            // ─────────────────────────────
-            // FACEIT
-            // ─────────────────────────────
             const faceitLevel = faceit.cs2?.skill_level ?? 0;
             const faceitElo = faceit.cs2?.elo ?? 0;
 
-            // ─────────────────────────────
-            // SCOPE.GG
-            // ─────────────────────────────
             const rating = scope.basic_stats?.rating_21?.current ?? 0;
             const kast = scope.basic_stats?.kast?.current ?? 0;
             const adr = scope.basic_stats?.adr?.current ?? 0;
             const kpr = scope.basic_stats?.kpr?.current ?? 0;
+
             const scopeKD = scope.kd?.current ?? 0;
             const scopeWR = (scope.winrate?.current ?? 0) * 100;
 
-            // ─────────────────────────────
-            // AIM
-            // ─────────────────────────────
             const rifleAcc = scope.aim_stats?.rifle?.accuracy?.value ?? 0;
             const rifleHS = scope.aim_stats?.rifle?.headshot_percentage?.value ?? 0;
             const sniperAcc = scope.aim_stats?.sniper?.accuracy?.value ?? 0;
@@ -80,11 +105,7 @@ module.exports = {
             const ttkSec = scope.aim_stats?.rifle?.time_to_kill?.upper_bound ?? 0;
             const ttk = Math.round(ttkSec * 1000);
 
-            // ─────────────────────────────
-            // PREMIER / MM
-            // ─────────────────────────────
             const ranks = cs.ranks || [];
-
             const premier = ranks.find(r => r.mode?.type === "Premier");
 
             const premierRating = premier?.rank ?? 0;
@@ -98,16 +119,12 @@ module.exports = {
                 .map(r => `• ${r.mode.map || "map"}: **rank ${r.rank}**`)
                 .join("\n") || "No data";
 
-            // ─────────────────────────────
-            // 🔥 FIX BAN (ROBUST)
-            // ─────────────────────────────
             const vacBan =
                 bans.vac_banned === true ||
                 bans.VACBanned === true;
 
             const gameBan =
-                (bans.number_of_game_bans ?? 0) > 0 ||
-                (bans.NumberOfGameBans ?? 0) > 0;
+                (bans.number_of_game_bans ?? bans.NumberOfGameBans ?? 0) > 0;
 
             const communityBan =
                 bans.community_banned === true ||
@@ -124,12 +141,14 @@ module.exports = {
             // SCORE AI
             // ─────────────────────────────
             let score = 100;
+            let color;
+
 
             if (anyBan) {
                 score = 0;
             } else {
 
-                score -= (cheat.percent || 0) * 1.2;
+                score -= cheatingPercent * 2.2;
 
                 const signalPenalty = [
                     signals.hs?.score01 || 0,
@@ -160,10 +179,58 @@ module.exports = {
             else status = "🔴 HIGH RISK";
 
             // ─────────────────────────────
+            // RED FLAGS
+            // ─────────────────────────────
+            const formattedRedFlags = redFlags.length
+                ? redFlags.map(flag => {
+                    const title = flag?.title || flag?.id || "Unknown flag";
+                    const severity = flag?.severity || "low";
+                    const explanation = flag?.explanation || "";
+
+                    const emoji =
+                        severity === "high" ? "🔴" :
+                        severity === "medium" ? "🟠" :
+                        "🟡";
+
+                    return `${emoji} **${title}**\n_${explanation}_`;
+                }).join("\n\n")
+                : "🟢 Aucun flag détecté";
+
+            // ─────────────────────────────
+            // CHEAT TYPES
+            // ─────────────────────────────
+            const formattedCheatTypes = Object.keys(cheatTypes).length
+                ? Object.entries(cheatTypes)
+                    .map(([key, value]) => {
+                        const percent = (value * 100).toFixed(1);
+
+                        const emoji =
+                            value >= 0.15 ? "🔴" :
+                            value >= 0.08 ? "🟠" :
+                            value > 0 ? "🟡" :
+                            "🟢";
+
+                        return `${emoji} **${key}**: ${percent}%`;
+                    })
+                    .join("\n")
+                : "🟢 Aucun signal détecté";
+            if (anyBan) {
+                color = 0xff0000; // rouge
+            } else if (score >= 80) {
+                color = 0x00ff00; // vert
+            } else if (score >= 60) {
+                color = 0xffff00; // jaune
+            } else if (score >= 40) {
+                color = 0xffa500; // orange
+            } else {
+                color = 0xff0000; // rouge HIGH RISK
+            }
+
+            // ─────────────────────────────
             // EMBED
             // ─────────────────────────────
             const embed = new EmbedBuilder()
-                .setColor(anyBan ? 0xff0000 : 0x00ff00)
+                .setColor(color)
                 .setTitle("🧠 CS2 FULL LEGIT ANALYSIS")
                 .setThumbnail(data.avatar_url || null)
                 .setDescription(`SteamID: \`${steamID}\``)
@@ -171,20 +238,17 @@ module.exports = {
                 .addFields(
                     {
                         name: "📊 Core",
-                        value:
-                            `KD: **${kd}**\nWR: **${wr}%**\nHS: **${hs}%**\nMatches: **${matches}**`,
+                        value: `KD: **${kd}**\nWR: **${wr}%**\nHS: **${hs}%**\nMatches: **${matches}**`,
                         inline: true
                     },
                     {
                         name: "🎮 Faceit",
-                        value:
-                            `Level: **${faceitLevel}**\nELO: **${faceitElo}**`,
+                        value: `Level: **${faceitLevel}**\nELO: **${faceitElo}**`,
                         inline: true
                     },
                     {
                         name: "🏆 Premier",
-                        value:
-                            `Season: **${premierSeason}**\nRating: **${premierRating}**\nBest: **${premierBest}**\nWins: **${premierWins}**`,
+                        value: `Season: **${premierSeason}**\nRating: **${premierRating}**\nBest: **${premierBest}**\nWins: **${premierWins}**`,
                         inline: true
                     },
                     {
@@ -194,14 +258,17 @@ module.exports = {
                     },
                     {
                         name: "📈 Scope",
-                        value:
-                            `Rating: **${rating.toFixed(2)}**\nKAST: **${kast.toFixed(1)}%**\nADR: **${adr.toFixed(1)}**\nKPR: **${kpr.toFixed(2)}**\nKD: **${scopeKD.toFixed(2)}**\nWR: **${scopeWR.toFixed(1)}%**`,
+                        value: `Rating: **${rating.toFixed(2)}**\nKAST: **${kast.toFixed(1)}%**\nADR: **${adr.toFixed(1)}**\nKPR: **${kpr.toFixed(2)}**\nKD: **${scopeKD.toFixed(2)}**\nWR: **${scopeWR.toFixed(1)}%**`,
                         inline: true
                     },
                     {
                         name: "🎯 Aim",
-                        value:
-                            `TTK: **${ttk} ms**\nRifle ACC: **${(rifleAcc * 100).toFixed(1)}%**\nHS: **${(rifleHS * 100).toFixed(1)}%**\nSniper: **${(sniperAcc * 100).toFixed(1)}%**`,
+                        value: `TTK: **${ttk} ms**\nRifle ACC: **${(rifleAcc * 100).toFixed(1)}%**\nHS: **${(rifleHS * 100).toFixed(1)}%**\nSniper: **${(sniperAcc * 100).toFixed(1)}%**`,
+                        inline: true
+                    },
+                    {
+                        name: "🚨 Cheating Probability",
+                        value: `**${cheatingPercent.toFixed(1)}%**`,
                         inline: true
                     },
                     {
@@ -222,7 +289,7 @@ module.exports = {
                     },
                     {
                         name: "🚩 Red Flags",
-                        value: redFlags.length ? redFlags.join("\n") : "🟢 Aucun flag détecté",
+                        value: formattedRedFlags,
                         inline: false
                     },
                     {
@@ -231,7 +298,6 @@ module.exports = {
                         inline: false
                     }
                 )
-
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [embed] });
