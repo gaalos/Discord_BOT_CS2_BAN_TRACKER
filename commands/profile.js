@@ -99,11 +99,26 @@ module.exports = {
                 .join("\n") || "No data";
 
             // ─────────────────────────────
-            // BAN STATUS
+            // 🔥 FIX BAN (ROBUST)
             // ─────────────────────────────
-            const vacBan = bans.vac_banned;
-            const gameBan = bans.number_of_game_bans > 0;
-            const anyBan = vacBan || gameBan;
+            const vacBan =
+                bans.vac_banned === true ||
+                bans.VACBanned === true;
+
+            const gameBan =
+                (bans.number_of_game_bans ?? 0) > 0 ||
+                (bans.NumberOfGameBans ?? 0) > 0;
+
+            const communityBan =
+                bans.community_banned === true ||
+                bans.CommunityBanned === true;
+
+            const anyBan = vacBan || gameBan || communityBan;
+
+            const lastBanDays =
+                bans.days_since_last_ban ??
+                bans.DaysSinceLastBan ??
+                null;
 
             // ─────────────────────────────
             // SCORE AI
@@ -131,7 +146,7 @@ module.exports = {
                 ].reduce((a, b) => a + (b || 0), 0);
 
                 score -= signalPenalty * 45;
-                score -= (redFlags.length || 0) * 15;
+                score -= (redFlags?.length || 0) * 15;
 
                 score = Math.max(0, Math.min(100, score));
             }
@@ -151,80 +166,68 @@ module.exports = {
                 .setColor(anyBan ? 0xff0000 : 0x00ff00)
                 .setTitle("🧠 CS2 FULL LEGIT ANALYSIS")
                 .setThumbnail(data.avatar_url || null)
-                .setDescription(
-                    `SteamID: \`${steamID}\`\n` +
-                    `Status: **${anyBan ? "⛔ BANNED ACCOUNT" : "🟢 CLEAN ACCOUNT"}**`
-                )
+                .setDescription(`SteamID: \`${steamID}\``)
 
                 .addFields(
-
                     {
                         name: "📊 Core",
                         value:
                             `KD: **${kd}**\nWR: **${wr}%**\nHS: **${hs}%**\nMatches: **${matches}**`,
                         inline: true
                     },
-
                     {
                         name: "🎮 Faceit",
                         value:
                             `Level: **${faceitLevel}**\nELO: **${faceitElo}**`,
                         inline: true
                     },
-
                     {
                         name: "🏆 Premier",
                         value:
                             `Season: **${premierSeason}**\nRating: **${premierRating}**\nBest: **${premierBest}**\nWins: **${premierWins}**`,
                         inline: true
                     },
-
                     {
                         name: "🎯 Matchmaking",
                         value: mmRanks,
                         inline: true
                     },
-
                     {
                         name: "📈 Scope",
                         value:
                             `Rating: **${rating.toFixed(2)}**\nKAST: **${kast.toFixed(1)}%**\nADR: **${adr.toFixed(1)}**\nKPR: **${kpr.toFixed(2)}**\nKD: **${scopeKD.toFixed(2)}**\nWR: **${scopeWR.toFixed(1)}%**`,
                         inline: true
                     },
-
                     {
                         name: "🎯 Aim",
                         value:
                             `TTK: **${ttk} ms**\nRifle ACC: **${(rifleAcc * 100).toFixed(1)}%**\nHS: **${(rifleHS * 100).toFixed(1)}%**\nSniper: **${(sniperAcc * 100).toFixed(1)}%**`,
                         inline: true
                     },
-
                     {
                         name: "🚨 Ban Status",
                         value:
                             `VAC Ban: **${vacBan ? "⛔ YES" : "✅ NO"}**\n` +
                             `Game Ban: **${gameBan ? "⛔ YES" : "✅ NO"}**\n` +
+                            `Community Ban: **${communityBan ? "⛔ YES" : "✅ NO"}**\n` +
+                            `Last Ban: **${lastBanDays ?? "N/A"} days ago**\n` +
                             `Status: **${anyBan ? "⛔ BANNED" : "🟢 CLEAN"}**`,
                         inline: true
                     },
-
                     {
                         name: "🧠 AI Signals",
                         value:
                             `HS: **${signals.hs?.value ?? "N/A"}**\nKD: **${signals.kd?.value ?? "N/A"}**\nADR: **${signals.adr?.value ?? "N/A"}**\nWR: **${signals.winrate?.value ?? "N/A"}**\nAim: **${signals.leetify_aim?.value ?? "N/A"}**`,
                         inline: true
                     },
-
                     {
                         name: "🚩 Red Flags",
                         value: redFlags.length ? redFlags.join("\n") : "🟢 Aucun flag détecté",
                         inline: false
                     },
-
                     {
                         name: "🧠 Score",
-                        value:
-                            `**${score.toFixed(1)}/100**\nStatus: **${status}**`,
+                        value: `**${score.toFixed(1)}/100**\nStatus: **${status}**`,
                         inline: false
                     }
                 )
