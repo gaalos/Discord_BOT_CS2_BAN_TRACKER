@@ -58,12 +58,18 @@ async function fetchProfile(steamId) {
             }
         );
 
-        if (res.status !== 200) return null;
+        if (res.status !== 200) {
+            return {
+                apiDown: true
+            };
+        }
 
         return res.data;
 
     } catch {
-        return null;
+        return {
+            apiDown: true
+        };
     }
 }
 
@@ -105,7 +111,62 @@ async function runScan(client, guildId) {
 
         const data = await fetchProfile(steamId);
 
-        if (!data) continue;
+        checked++;
+
+        // ─────────────────────────────
+        // API DOWN MESSAGE
+        // ─────────────────────────────
+        if (!data || data.apiDown) {
+
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`remove_${acc.id}`)
+                        .setLabel("Remove")
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+            const profileUrl =
+                `https://steamcommunity.com/profiles/${steamId}/`;
+
+            const embed = new EmbedBuilder()
+                .setTitle(`⚠️ API HS`)
+                .setURL(profileUrl)
+                .setColor(0x808080)
+
+                .setDescription(
+                    `## ❌ API UNAVAILABLE\n\n` +
+                    `🔗 [Open Steam Profile](${profileUrl})`
+                )
+
+                .addFields(
+                    {
+                        name: "Steam",
+                        value: `[${steamId}](${profileUrl})`,
+                        inline: true
+                    },
+                    {
+                        name: "Status",
+                        value: "Le service cscheck.in ne répond pas actuellement.",
+                        inline: false
+                    }
+                )
+
+                .setFooter({
+                    text: "CS2 Tracker System"
+                })
+
+                .setTimestamp();
+
+            await channel.send({
+                embeds: [embed],
+                components: [row]
+            });
+
+            await new Promise(r => setTimeout(r, 300));
+
+            continue;
+        }
 
         const profile = data?.profile || {};
         const bans = data?.bans || {};
@@ -133,8 +194,6 @@ async function runScan(client, guildId) {
         const nickname =
             profile.nickname ||
             "Unknown Player";
-
-        checked++;
 
         // ─────────────────────────────
         // STATS
@@ -229,7 +288,8 @@ async function runScan(client, guildId) {
                 `└ Bans: ${gameBan.numberOfBans || 1}`
             );
 
-            if (gameBan.daysSinceLastBan) {
+            if (gameBan.daysSinceLastBan !== null &&
+                gameBan.daysSinceLastBan !== undefined) {
 
                 details.push(
                     `└ Last game ban: ${gameBan.daysSinceLastBan} days ago`
@@ -352,7 +412,7 @@ async function runScan(client, guildId) {
 
             .setDescription(
                 top.map((u, i) =>
-                    `**${i + 1}.** [${u.name}](${u.url}) • **${u.days}j ago**\n${u.avatar}`
+                    `**${i + 1}.** [${u.name}](${u.url}) • **${u.days}j ago**\n${u.avatar || ""}`
                 ).join("\n\n")
             )
 
