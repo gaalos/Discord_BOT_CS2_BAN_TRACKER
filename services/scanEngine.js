@@ -125,23 +125,30 @@ async function runScan(client, guildId) {
             `https://steamcommunity.com/profiles/${steamId}/`;
 
         // ─────────────────────────────
-        // FIX BAN INFO (IMPORTANT)
+        // NORMALIZED BAN INFO (FIXED)
         // ─────────────────────────────
-        const bans = data.ban_info || {};
+        const bans = data.ban_info ?? {};
 
-        const vacBanned =
-            bans.vac_banned ||
-            bans.VACBanned ||
-            bans.number_of_vac_bans > 0 ||
-            bans.NumberOfVACBans > 0;
+        const vacBanCount = Number(
+            bans.number_of_vac_bans ??
+            bans.NumberOfVACBans ??
+            0
+        );
 
-        const gameBanned =
-            bans.number_of_game_bans > 0 ||
-            bans.NumberOfGameBans > 0;
+        const gameBanCount = Number(
+            bans.number_of_game_bans ??
+            bans.NumberOfGameBans ??
+            0
+        );
 
-        const communityBanned =
-            bans.community_banned ||
-            bans.CommunityBanned;
+        const vacBanned = vacBanCount > 0;
+        const gameBanned = gameBanCount > 0;
+
+        const communityBanned = Boolean(
+            bans.community_banned ??
+            bans.CommunityBanned ??
+            false
+        );
 
         const daysSinceBan =
             bans.days_since_last_ban ??
@@ -171,17 +178,21 @@ async function runScan(client, guildId) {
         // ─────────────────────────────
         // STATUS
         // ─────────────────────────────
-        let color = isBanned ? 0xff3b3b : 0x2ecc71;
+        const statusParts = [];
 
-        let status = "🟢 CLEAN";
+        if (vacBanned) statusParts.push("⛔ VAC BAN");
+        if (gameBanned) statusParts.push("🟧 GAME BAN");
+        if (communityBanned) statusParts.push("🟪 COMMUNITY BAN");
 
-        if (vacBanned) status = "⛔ VAC BAN";
-        else if (gameBanned) status = "🟧 GAME BAN";
-        else if (communityBanned) status = "🟪 COMMUNITY BAN";
+        let status = statusParts.length
+            ? statusParts.join(" | ")
+            : "🟢 CLEAN";
 
         if (daysSinceBan !== null && isBanned) {
             status += ` (${daysSinceBan}j ago)`;
         }
+
+        const color = isBanned ? 0xff3b3b : 0x2ecc71;
 
         // ─────────────────────────────
         // BUTTONS
@@ -194,19 +205,17 @@ async function runScan(client, guildId) {
         );
 
         // ─────────────────────────────
-        // EMBED CLEAN
+        // EMBED
         // ─────────────────────────────
         const embed = new EmbedBuilder()
             .setTitle(`👤 ${nickname}`)
             .setURL(profileUrl)
             .setThumbnail(avatar)
             .setColor(color)
-
             .setDescription(
                 `## ${status}\n` +
                 `🔗 [Steam Profile](${profileUrl})`
             )
-
             .addFields(
                 {
                     name: "SteamID",
@@ -236,7 +245,6 @@ async function runScan(client, guildId) {
                     inline: false
                 }
             )
-
             .setFooter({ text: "CS2 Tracker System" })
             .setTimestamp();
 
@@ -249,7 +257,7 @@ async function runScan(client, guildId) {
     }
 
     // ─────────────────────────────
-    // SUMMARY CLEAN
+    // SUMMARY
     // ─────────────────────────────
     await channel.send({
         embeds: [
