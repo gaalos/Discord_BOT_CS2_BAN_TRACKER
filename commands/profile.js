@@ -188,7 +188,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 78,
             hsMax: 65,
-            ttkMin: 230
+            ttkMin: 400
         };
     }
 
@@ -203,7 +203,7 @@ const getAimThresholds = (lvl, prem) => {
             return {
                 aimMax: 95,
                 hsMax: 82,
-                ttkMin: 160
+                ttkMin: 250
             };
         }
 
@@ -211,7 +211,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 95,
             hsMax: 78,
-            ttkMin: 170
+            ttkMin: 250
         };
     }
 
@@ -220,7 +220,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 84,
             hsMax: 74,
-            ttkMin: 185
+            ttkMin: 270
         };
     }
 
@@ -229,7 +229,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 80,
             hsMax: 70,
-            ttkMin: 205
+            ttkMin: 280
         };
     }
 
@@ -241,7 +241,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 95,
             hsMax: 80,
-            ttkMin: 165
+            ttkMin: 250
         };
     }
 
@@ -249,7 +249,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 85,
             hsMax: 74,
-            ttkMin: 185
+            ttkMin: 270
         };
     }
 
@@ -257,7 +257,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 81,
             hsMax: 71,
-            ttkMin: 200
+            ttkMin: 280
         };
     }
 
@@ -265,7 +265,7 @@ const getAimThresholds = (lvl, prem) => {
         return {
             aimMax: 78,
             hsMax: 68,
-            ttkMin: 210
+            ttkMin: 300
         };
     }
 
@@ -273,7 +273,7 @@ const getAimThresholds = (lvl, prem) => {
     return {
         aimMax: 72,
         hsMax: 62,
-        ttkMin: 240
+        ttkMin: 350
     };
 };
 
