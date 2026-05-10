@@ -201,7 +201,7 @@ const getAimThresholds = (lvl, prem) => {
         // Faceit 10 + gros Premier = vrai monstre
         if (premier && premier >= 28000) {
             return {
-                aimMax: 92,
+                aimMax: 95,
                 hsMax: 82,
                 ttkMin: 160
             };
