@@ -209,7 +209,7 @@ const getAimThresholds = (lvl, prem) => {
 
         // Faceit 10 standard
         return {
-            aimMax: 88,
+            aimMax: 95,
             hsMax: 78,
             ttkMin: 170
         };
@@ -237,9 +237,9 @@ const getAimThresholds = (lvl, prem) => {
     // 🔥 PREMIER fallback seulement si FACEIT absent
     // ─────────────────────────────
 
-    if (premier && premier >= 28000) {
+    if (premier && premier >= 31000) {
         return {
-            aimMax: 90,
+            aimMax: 95,
             hsMax: 80,
             ttkMin: 165
         };
@@ -247,7 +247,7 @@ const getAimThresholds = (lvl, prem) => {
 
     if (premier && premier >= 22000) {
         return {
-            aimMax: 84,
+            aimMax: 85,
             hsMax: 74,
             ttkMin: 185
         };
